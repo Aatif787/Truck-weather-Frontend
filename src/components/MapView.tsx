@@ -5,7 +5,12 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 export interface HourlyForecastEntry {
   offset_hours: number
   forecast_timestamp: string | null
+  temperature_f?: number | null
+  weather_description?: string
+  weather_icon?: string
   wind_speed_mph: number | null
+  wind_gusts_mph?: number | null
+  wind_direction_cardinal?: string
   rain_intensity_in_hr: number | null
   snow_intensity_in_hr: number | null
   wind_risk: string
@@ -24,7 +29,15 @@ export interface Checkpoint {
   forecast_timestamp: string | null
   data_source: string
   weather_status: string
+  temperature_f?: number | null
+  temperature_c?: number | null
+  weather_code?: number | null
+  weather_description?: string
+  weather_icon?: string
   wind_speed_mph: number | null
+  wind_gusts_mph?: number | null
+  wind_direction_deg?: number | null
+  wind_direction_cardinal?: string
   rain_intensity_in_hr: number | null
   snow_intensity_in_hr: number | null
   wind_risk: string
@@ -32,6 +45,8 @@ export interface Checkpoint {
   snow_risk: string
   load_adjusted_wind_risk: string
   final_risk: string
+  road_name?: string
+  highway_refs?: string[]
   hourly_forecasts?: HourlyForecastEntry[]
 }
 
@@ -134,6 +149,13 @@ export function MapView({
       return {
         risk: cp.final_risk || 'UNKNOWN',
         wind_speed_mph: cp.wind_speed_mph,
+        wind_gusts_mph: cp.wind_gusts_mph,
+        wind_direction_cardinal: cp.wind_direction_cardinal,
+        temperature_f: cp.temperature_f,
+        temperature_c: cp.temperature_c,
+        weather_description: cp.weather_description,
+        weather_icon: cp.weather_icon,
+        road_name: cp.road_name,
         rain_intensity_in_hr: cp.rain_intensity_in_hr,
         snow_intensity_in_hr: cp.snow_intensity_in_hr,
         wind_risk: cp.wind_risk || 'UNKNOWN',
@@ -151,6 +173,13 @@ export function MapView({
       return {
         risk: entry.final_risk || 'UNKNOWN',
         wind_speed_mph: entry.wind_speed_mph,
+        wind_gusts_mph: entry.wind_gusts_mph,
+        wind_direction_cardinal: entry.wind_direction_cardinal,
+        temperature_f: entry.temperature_f ?? cp.temperature_f,
+        temperature_c: cp.temperature_c,
+        weather_description: entry.weather_description ?? cp.weather_description,
+        weather_icon: entry.weather_icon ?? cp.weather_icon,
+        road_name: cp.road_name,
         rain_intensity_in_hr: entry.rain_intensity_in_hr,
         snow_intensity_in_hr: entry.snow_intensity_in_hr,
         wind_risk: entry.wind_risk || 'UNKNOWN',
@@ -166,6 +195,13 @@ export function MapView({
     return {
       risk: 'UNKNOWN',
       wind_speed_mph: null,
+      wind_gusts_mph: null,
+      wind_direction_cardinal: '',
+      temperature_f: null,
+      temperature_c: null,
+      weather_description: 'Unavailable',
+      weather_icon: '⛅',
+      road_name: cp.road_name,
       rain_intensity_in_hr: null,
       snow_intensity_in_hr: null,
       wind_risk: 'UNKNOWN',
@@ -760,6 +796,27 @@ export function MapView({
           ) : (
             <div className="inspector-grid">
               <div className="inspector-item">
+                <span className="ins-label">Road & Corridor Location</span>
+                <span className="ins-value">
+                  🛣️ {selectedCheckpoint.road_name || 'Corridor Route'}
+                </span>
+                <span className="ins-sub">
+                  Marker: CP {selectedCheckpoint.checkpoint_index} ({selectedCheckpoint.distance_from_origin_miles.toFixed(1)} mi from origin)
+                </span>
+              </div>
+
+              <div className="inspector-item">
+                <span className="ins-label">Temperature & Weather</span>
+                <span className="ins-value">
+                  {inspectorData.weather_icon || '⛅'} {inspectorData.temperature_f !== null && inspectorData.temperature_f !== undefined ? `${Math.round(inspectorData.temperature_f)}°F` : '--'}
+                  {selectedCheckpoint.temperature_c !== null && selectedCheckpoint.temperature_c !== undefined ? ` (${selectedCheckpoint.temperature_c}°C)` : ''}
+                </span>
+                <span className="ins-sub">
+                  Condition: <strong>{inspectorData.weather_description || 'Clear Sky'}</strong>
+                </span>
+              </div>
+
+              <div className="inspector-item">
                 <span className="ins-label">Estimated Arrival Time (ETA)</span>
                 <span className="ins-value">
                   {formatDateTimeDisplay(new Date(selectedCheckpoint.estimated_arrival_time))}
@@ -770,23 +827,15 @@ export function MapView({
               </div>
 
               <div className="inspector-item">
-                <span className="ins-label">
-                  {sliderOffset === null
-                    ? 'Matched Forecast Hour'
-                    : `Forecast at +${sliderOffset}h`}
-                </span>
-                <span className="ins-value">
-                  {inspectorData.forecast_timestamp || 'Unavailable'}
-                </span>
-                <span className="ins-sub">Source: {selectedCheckpoint.data_source}</span>
-              </div>
-
-              <div className="inspector-item">
-                <span className="ins-label">Wind Velocity & Crosswind Risk</span>
+                <span className="ins-label">Wind Velocity & Gusts</span>
                 <span className="ins-value" style={{ color: inspectorData.wind_speed_mph && inspectorData.wind_speed_mph >= 45 ? '#DC2626' : inspectorData.wind_speed_mph && inspectorData.wind_speed_mph >= 25 ? '#EA580C' : '#15803D' }}>
                   {inspectorData.wind_speed_mph !== null
                     ? `💨 ${inspectorData.wind_speed_mph.toFixed(1)} mph`
-                    : 'N/A'}{' '}
+                    : 'N/A'}
+                  {inspectorData.wind_direction_cardinal ? ` ${inspectorData.wind_direction_cardinal}` : ''}
+                  {inspectorData.wind_gusts_mph !== null && inspectorData.wind_gusts_mph !== undefined && inspectorData.wind_gusts_mph > (inspectorData.wind_speed_mph || 0) && (
+                    <span style={{ fontSize: '0.8rem', color: '#D97706', fontWeight: 600 }}> (Gusts: {Math.round(inspectorData.wind_gusts_mph)} mph)</span>
+                  )}{' '}
                   <span className={`risk-badge badge-${inspectorData.wind_risk.toLowerCase()}`}>
                     {inspectorData.wind_risk}
                   </span>

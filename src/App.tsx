@@ -743,9 +743,10 @@ function App() {
                             <table className="checkpoint-table">
                               <thead>
                                 <tr>
-                                  <th>Marker</th>
+                                  <th>Marker & Corridor</th>
                                   <th>ETA</th>
-                                  <th>Wind</th>
+                                  <th>Conditions</th>
+                                  <th>Wind & Gusts</th>
                                   <th>Rain</th>
                                   <th>Snow</th>
                                   <th>Load-Adjusted Wind</th>
@@ -757,16 +758,52 @@ function App() {
                                 {route.checkpoints.map((cp) => (
                                   <tr key={cp.checkpoint_index}>
                                     <td>
-                                      <strong>
-                                        CP {cp.checkpoint_index} ({cp.distance_from_origin_miles.toFixed(0)} mi)
-                                      </strong>
+                                      <div className="cp-marker-col">
+                                        <strong>
+                                          CP {cp.checkpoint_index} ({cp.distance_from_origin_miles.toFixed(0)} mi)
+                                        </strong>
+                                        {cp.road_name && (
+                                          <span className="cp-road-tag" title={cp.road_name}>
+                                            <span className="cp-road-icon" aria-hidden="true">🛣️</span> {cp.road_name}
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
                                     <td>{formatDateTime(cp.estimated_arrival_time)}</td>
                                     <td>
-                                      {cp.wind_speed_mph !== null ? `${cp.wind_speed_mph} mph ` : 'N/A '}
-                                      <span className={`risk-badge ${getRiskClass(cp.wind_risk)}`}>
-                                        {cp.wind_risk}
-                                      </span>
+                                      <div className="cp-condition-cell">
+                                        <span className="cp-weather-icon" title={cp.weather_description || 'Weather condition'}>
+                                          {cp.weather_icon || '⛅'}
+                                        </span>
+                                        <div className="cp-weather-info">
+                                          <span className="cp-temp-val">
+                                            {cp.temperature_f !== null && cp.temperature_f !== undefined
+                                              ? `${Math.round(cp.temperature_f)}°F`
+                                              : '--'}
+                                          </span>
+                                          <span className="cp-condition-desc">
+                                            {cp.weather_description || 'Clear'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <div className="cp-wind-cell">
+                                        <div className="cp-wind-primary">
+                                          <span className="cp-wind-speed">
+                                            {cp.wind_speed_mph !== null ? `${cp.wind_speed_mph.toFixed(1)} mph` : 'N/A'}
+                                            {cp.wind_direction_cardinal ? ` ${cp.wind_direction_cardinal}` : ''}
+                                          </span>
+                                          <span className={`risk-badge ${getRiskClass(cp.wind_risk)}`}>
+                                            {cp.wind_risk}
+                                          </span>
+                                        </div>
+                                        {cp.wind_gusts_mph !== null && cp.wind_gusts_mph !== undefined && cp.wind_gusts_mph > (cp.wind_speed_mph || 0) && (
+                                          <span className="cp-gusts-text">
+                                            Gusts {Math.round(cp.wind_gusts_mph)} mph
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
                                     <td>
                                       {cp.rain_intensity_in_hr !== null

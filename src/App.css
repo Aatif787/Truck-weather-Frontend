@@ -2928,3 +2928,92 @@ html {
   margin: 0;
   font-style: italic;
 }
+
+/* ==========================================================================
+   CHECKPOINT WEATHER BUNDLE STYLING (ZERO BLUE DESIGN)
+   ========================================================================== */
+.cp-marker-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cp-road-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: #52525B;
+  background: #F4F4F5;
+  border: 1px solid #E4E4E7;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  max-width: 190px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.cp-road-icon {
+  font-size: 0.75rem;
+}
+
+.cp-condition-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cp-weather-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.cp-weather-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.cp-temp-val {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.cp-condition-desc {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.cp-wind-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cp-wind-primary {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.cp-wind-speed {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cp-gusts-text {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #D97706;
+  background: #FFFBEB;
+  border: 1px solid #FEF3C7;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  display: inline-block;
+  width: fit-content;
+}

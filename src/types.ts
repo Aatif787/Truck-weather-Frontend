@@ -1,7 +1,12 @@
 export interface HourlyForecastEntry {
   offset_hours: number
   forecast_timestamp: string | null
+  temperature_f?: number | null
+  weather_description?: string
+  weather_icon?: string
   wind_speed_mph: number | null
+  wind_gusts_mph?: number | null
+  wind_direction_cardinal?: string
   rain_intensity_in_hr: number | null
   snow_intensity_in_hr: number | null
   wind_risk: string
@@ -20,7 +25,15 @@ export interface Checkpoint {
   forecast_timestamp: string | null
   data_source: string
   weather_status: string
+  temperature_f?: number | null
+  temperature_c?: number | null
+  weather_code?: number | null
+  weather_description?: string
+  weather_icon?: string
   wind_speed_mph: number | null
+  wind_gusts_mph?: number | null
+  wind_direction_deg?: number | null
+  wind_direction_cardinal?: string
   rain_intensity_in_hr: number | null
   snow_intensity_in_hr: number | null
   wind_risk: string
@@ -28,6 +41,8 @@ export interface Checkpoint {
   snow_risk: string
   load_adjusted_wind_risk: string
   final_risk: string
+  road_name?: string
+  highway_refs?: string[]
   hourly_forecasts?: HourlyForecastEntry[]
 }
 
