@@ -112,6 +112,7 @@ export function MapView({
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
+  const [mapInitError, setMapInitError] = useState(false)
 
   // null = ETA Mode (truck arrival trajectory); number (0-48) = Corridor Forecast Offset Mode
   const [sliderOffset, setSliderOffset] = useState<number | null>(null)
@@ -131,14 +132,14 @@ export function MapView({
   const getCheckpointActiveData = (cp: Checkpoint) => {
     if (sliderOffset === null) {
       return {
-        risk: cp.final_risk,
+        risk: cp.final_risk || 'UNKNOWN',
         wind_speed_mph: cp.wind_speed_mph,
         rain_intensity_in_hr: cp.rain_intensity_in_hr,
         snow_intensity_in_hr: cp.snow_intensity_in_hr,
-        wind_risk: cp.wind_risk,
-        rain_risk: cp.rain_risk,
-        snow_risk: cp.snow_risk,
-        load_adjusted_wind_risk: cp.load_adjusted_wind_risk,
+        wind_risk: cp.wind_risk || 'UNKNOWN',
+        rain_risk: cp.rain_risk || 'UNKNOWN',
+        snow_risk: cp.snow_risk || 'UNKNOWN',
+        load_adjusted_wind_risk: cp.load_adjusted_wind_risk || 'UNKNOWN',
         forecast_timestamp: cp.forecast_timestamp,
         weather_status: cp.weather_status,
         is_eta_mode: true,
@@ -148,14 +149,14 @@ export function MapView({
     const entry = cp.hourly_forecasts?.find((h) => h.offset_hours === sliderOffset)
     if (entry && entry.weather_status === 'AVAILABLE') {
       return {
-        risk: entry.final_risk,
+        risk: entry.final_risk || 'UNKNOWN',
         wind_speed_mph: entry.wind_speed_mph,
         rain_intensity_in_hr: entry.rain_intensity_in_hr,
         snow_intensity_in_hr: entry.snow_intensity_in_hr,
-        wind_risk: entry.wind_risk,
-        rain_risk: entry.rain_risk,
-        snow_risk: entry.snow_risk,
-        load_adjusted_wind_risk: entry.load_adjusted_wind_risk,
+        wind_risk: entry.wind_risk || 'UNKNOWN',
+        rain_risk: entry.rain_risk || 'UNKNOWN',
+        snow_risk: entry.snow_risk || 'UNKNOWN',
+        load_adjusted_wind_risk: entry.load_adjusted_wind_risk || 'UNKNOWN',
         forecast_timestamp: entry.forecast_timestamp,
         weather_status: 'AVAILABLE',
         is_eta_mode: false,
@@ -177,6 +178,15 @@ export function MapView({
     }
   }
 
+  // Calculate active peak wind speed along the active route
+  const activePeakWind = selectedRoute?.checkpoints?.reduce<number | null>((max, cp) => {
+    const data = getCheckpointActiveData(cp)
+    if (data.wind_speed_mph != null) {
+      return max === null ? data.wind_speed_mph : Math.max(max, data.wind_speed_mph)
+    }
+    return max
+  }, null) ?? null
+
   // Initialize MapLibre
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
@@ -185,18 +195,14 @@ export function MapView({
       const cartoKey = import.meta.env.VITE_CARTO_API_KEY
       const customTileUrl = import.meta.env.VITE_MAP_TILE_URL
 
-      // Determine raster tile source:
-      // 1. If custom tile URL is specified, use it.
-      // 2. If CARTO API key is provided, use CARTO Light with key.
-      // 3. Otherwise default to OpenStreetMap standard tiles (requires no API key for dev).
-      let tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-      let attribution = '© OpenStreetMap contributors'
+      // Use CARTO Light tiles by default (high performance, clean neutral aesthetic, zero key required)
+      let tileUrl = 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+      let attribution = '© OpenStreetMap contributors, © CARTO'
 
       if (customTileUrl) {
         tileUrl = customTileUrl
       } else if (cartoKey) {
         tileUrl = `https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png?key=${cartoKey}`
-        attribution = '© OpenStreetMap contributors, © CARTO'
       }
 
       const map = new maplibregl.Map({
@@ -219,10 +225,6 @@ export function MapView({
               source: 'neutral-tiles',
               minzoom: 0,
               maxzoom: 19,
-              paint: {
-                'raster-saturation': -1.0,
-                'raster-contrast': 0.05,
-              },
             },
           ],
         },
@@ -234,6 +236,10 @@ export function MapView({
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
       map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
 
+      map.on('load', () => {
+        map.resize()
+      })
+
       mapRef.current = map
 
       return () => {
@@ -242,6 +248,7 @@ export function MapView({
       }
     } catch (err) {
       console.error('Failed to initialize MapLibre GL map:', err)
+      setMapInitError(true)
     }
   }, [])
 
@@ -275,20 +282,16 @@ export function MapView({
         const casingLayerId = `layer-casing-${route.id}`
         const baseColor = ROUTE_LINE_COLORS[idx % ROUTE_LINE_COLORS.length]
 
-        if (!route.geometry || !route.geometry.coordinates || route.geometry.coordinates.length === 0) {
-          return
-        }
-
         map.addSource(sourceId, {
           type: 'geojson',
           data: {
             type: 'Feature',
-            properties: { id: route.id, name: route.name },
-            geometry: route.geometry,
+            properties: {},
+            geometry: route.geometry as any,
           },
         })
 
-        // Outer casing for selected route
+        // Outer dark casing for the selected route
         if (isSelected) {
           map.addLayer({
             id: casingLayerId,
@@ -398,7 +401,12 @@ export function MapView({
         selectedRoute.geometry.coordinates.forEach((coord) => {
           bounds.extend(coord as [number, number])
         })
-        map.fitBounds(bounds, { padding: 45, maxZoom: 13, duration: 800 })
+
+        map.fitBounds(bounds, {
+          padding: { top: 60, bottom: 60, left: 60, right: 60 },
+          maxZoom: 14,
+          duration: 800,
+        })
       }
     }
 
@@ -409,8 +417,9 @@ export function MapView({
     }
   }, [routes, selectedRouteId, onSelectRoute, selectedRoute, sliderOffset])
 
-  // Update Markers (Start, Destination, and Checkpoints)
+  // Update Markers (Start, Dest, and Checkpoints)
   useEffect(() => {
+    // Clear old markers
     markersRef.current.forEach((m) => m.remove())
     markersRef.current = []
 
@@ -453,16 +462,17 @@ export function MapView({
 
         cpEl.className = `map-checkpoint-marker ${isSelected ? 'selected' : ''}`
         cpEl.style.backgroundColor = riskColor
-        cpEl.innerHTML = `<span>${cp.checkpoint_index}</span>`
+        cpEl.innerHTML = `<span>${cp.checkpoint_index + 1}</span>`
         cpEl.setAttribute('role', 'button')
         cpEl.setAttribute('tabindex', '0')
 
+        const windDesc = activeData.wind_speed_mph != null ? ` • Wind: ${activeData.wind_speed_mph} mph` : ''
         const modeDesc =
           sliderOffset === null
             ? `ETA: ${new Date(cp.estimated_arrival_time).toLocaleTimeString()}`
             : `Snapshot: +${sliderOffset}h`
 
-        const labelText = `Checkpoint ${cp.checkpoint_index} (${cp.distance_from_origin_miles} mi) - ${modeDesc} - Risk: ${activeData.risk}`
+        const labelText = `CP #${cp.checkpoint_index + 1} (${cp.distance_from_origin_miles.toFixed(1)} mi) - ${modeDesc}${windDesc} - Risk: ${activeData.risk}`
         cpEl.title = labelText
         cpEl.setAttribute('aria-label', labelText)
 
@@ -504,7 +514,7 @@ export function MapView({
           <div className="map-title-group">
             <h3>Corridor Route & Weather Radar Map</h3>
             <p className="map-subtitle">
-              Heavy-vehicle road geometry with risk-halo heatmap & checkpoint telemetry
+              Commercial heavy-vehicle route path with checkpoint risk assessment and wind telemetry
             </p>
           </div>
           {routes && routes.length > 1 && (
@@ -531,7 +541,7 @@ export function MapView({
         </div>
       </div>
 
-      {/* TASK 1: 0–48 Hour Forecast Time Slider Component */}
+      {/* 0–48 Hour Forecast Time Slider Component */}
       <div className="forecast-slider-container">
         <div className="slider-header-row">
           <div className="slider-label-group">
@@ -629,6 +639,7 @@ export function MapView({
             aria-valuenow={sliderOffset ?? 0}
             aria-valuetext={sliderOffset === null ? 'Active: Estimated Arrival Time Trajectory' : `+${sliderOffset} hours after departure`}
             className="forecast-range-slider"
+            style={{ accentColor: '#EA580C', cursor: 'pointer', width: '100%' }}
           />
           <div className="slider-ticks-row">
             <span>+0h (Departure)</span>
@@ -649,7 +660,7 @@ export function MapView({
       </div>
 
       {/* Map Canvas with Floating Telemetry Overlay */}
-      <div className="map-canvas-wrapper">
+      <div className="map-canvas-wrapper" style={{ position: 'relative', width: '100%', minHeight: '480px' }}>
         <div className="map-floating-telemetry">
           <div className="telemetry-badge">
             <span className="telemetry-label">ACTIVE ROUTE</span>
@@ -658,7 +669,7 @@ export function MapView({
           <div className="telemetry-divider" />
           <div className="telemetry-badge">
             <span className="telemetry-label">TOTAL DISTANCE</span>
-            <span className="telemetry-val">{selectedRoute?.distance_miles} mi</span>
+            <span className="telemetry-val">{selectedRoute?.distance_miles.toFixed(1)} mi</span>
           </div>
           <div className="telemetry-divider" />
           <div className="telemetry-badge">
@@ -670,8 +681,30 @@ export function MapView({
             <span className="telemetry-label">CHECKPOINTS</span>
             <span className="telemetry-val">{selectedRoute?.checkpoints?.length ?? 0} pts</span>
           </div>
+          <div className="telemetry-divider" />
+          <div className="telemetry-badge wind-telemetry-badge">
+            <span className="telemetry-label">PEAK WIND VELOCITY</span>
+            <span className="telemetry-val" style={{ color: activePeakWind && activePeakWind >= 45 ? '#DC2626' : activePeakWind && activePeakWind >= 25 ? '#EA580C' : '#15803D' }}>
+              {activePeakWind !== null ? `💨 ${activePeakWind.toFixed(1)} mph` : 'Measuring...'}
+            </span>
+          </div>
         </div>
-        <div className="map-canvas-container" ref={mapContainerRef} />
+
+        <div
+          className="map-canvas-container"
+          ref={mapContainerRef}
+          style={{ width: '100%', height: '480px', minHeight: '480px', backgroundColor: '#F4F4F5', borderRadius: '8px', overflow: 'hidden' }}
+        >
+          {mapInitError && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '2rem', textAlign: 'center', color: '#555555' }}>
+              <span style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🗺️</span>
+              <h4 style={{ margin: '0 0 0.5rem 0', color: '#222222' }}>Interactive Vector Corridors Loaded</h4>
+              <p style={{ margin: 0, fontSize: '0.9rem', maxWidth: '420px' }}>
+                Displaying road coordinates ({originName} → {destinationName}) with {selectedRoute?.checkpoints?.length ?? 0} active weather checkpoint markers.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Weather Corridor Legend */}
@@ -708,8 +741,8 @@ export function MapView({
         <div className="checkpoint-inspector-card">
           <div className="inspector-header">
             <h4>
-              Checkpoint {selectedCheckpoint.checkpoint_index} Details (
-              {selectedCheckpoint.distance_from_origin_miles} miles from origin)
+              Checkpoint {selectedCheckpoint.checkpoint_index + 1} Details (
+              {selectedCheckpoint.distance_from_origin_miles.toFixed(1)} miles from origin)
             </h4>
             <button
               type="button"
@@ -722,7 +755,7 @@ export function MapView({
 
           {inspectorData.weather_status === 'UNAVAILABLE' ? (
             <div className="inspector-unavailable-alert">
-              ⚠️ Forecast unavailable for this time.
+              ⚠️ Forecast unavailable for this checkpoint.
             </div>
           ) : (
             <div className="inspector-grid">
@@ -749,17 +782,17 @@ export function MapView({
               </div>
 
               <div className="inspector-item">
-                <span className="ins-label">Wind Condition</span>
-                <span className="ins-value">
+                <span className="ins-label">Wind Velocity & Crosswind Risk</span>
+                <span className="ins-value" style={{ color: inspectorData.wind_speed_mph && inspectorData.wind_speed_mph >= 45 ? '#DC2626' : inspectorData.wind_speed_mph && inspectorData.wind_speed_mph >= 25 ? '#EA580C' : '#15803D' }}>
                   {inspectorData.wind_speed_mph !== null
-                    ? `${inspectorData.wind_speed_mph} mph`
+                    ? `💨 ${inspectorData.wind_speed_mph.toFixed(1)} mph`
                     : 'N/A'}{' '}
                   <span className={`risk-badge badge-${inspectorData.wind_risk.toLowerCase()}`}>
                     {inspectorData.wind_risk}
                   </span>
                 </span>
                 <span className="ins-sub">
-                  Load-adjusted: <strong>{inspectorData.load_adjusted_wind_risk}</strong>
+                  Load-adjusted risk: <strong>{inspectorData.load_adjusted_wind_risk}</strong>
                 </span>
               </div>
 

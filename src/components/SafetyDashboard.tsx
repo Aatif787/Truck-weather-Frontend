@@ -37,6 +37,20 @@ export function SafetyDashboard({
     (selectedRoute.high_miles || 0) + (selectedRoute.severe_miles || 0)
   ).toFixed(1)
 
+  const maxWindMph = selectedRoute.checkpoints?.reduce<number | null>((max, cp) => {
+    if (cp.wind_speed_mph != null) {
+      return max === null ? cp.wind_speed_mph : Math.max(max, cp.wind_speed_mph)
+    }
+    return max
+  }, null) ?? null
+
+  const windColor =
+    maxWindMph !== null && maxWindMph >= 45
+      ? '#DC2626'
+      : maxWindMph !== null && maxWindMph >= 25
+      ? '#C2410C'
+      : '#15803D'
+
   return (
     <section className="safety-dashboard-card scroll-reveal" aria-label="Safety Analytics Dashboard">
       <div className="dashboard-header-row">
@@ -44,7 +58,7 @@ export function SafetyDashboard({
           <div className="dashboard-pill-badge">HGV METRICS</div>
           <h3>Safety Analytics & Operations Dashboard</h3>
           <p className="dashboard-sub">
-            Real-time deterministic safety index and risk telemetry for selected highway corridor.
+            Real-time deterministic safety index and weather risk telemetry for selected highway corridor.
           </p>
         </div>
 
@@ -86,7 +100,7 @@ export function SafetyDashboard({
         })}
       </div>
 
-      {/* 5 High-Impact KPI Cards */}
+      {/* High-Impact KPI Cards */}
       <div className="kpi-grid">
         {/* KPI 1: Safety Score */}
         <div className={`kpi-card kpi-${scoreTier}`}>
@@ -109,7 +123,31 @@ export function SafetyDashboard({
           </span>
         </div>
 
-        {/* KPI 2: Total Distance */}
+        {/* KPI 2: Peak Wind Velocity */}
+        <div className={`kpi-card ${maxWindMph !== null && maxWindMph >= 45 ? 'kpi-danger' : maxWindMph !== null && maxWindMph >= 25 ? 'kpi-warning' : 'kpi-safe'}`}>
+          <div className="kpi-card-header">
+            <span className="kpi-card-title">Peak Wind Velocity</span>
+            <span className="kpi-data-type-tag measured">FORECAST</span>
+          </div>
+          <div className="kpi-main-val">
+            <span className="kpi-number" style={{ color: windColor }}>
+              {maxWindMph !== null ? `${maxWindMph.toFixed(1)}` : '--'}
+            </span>
+            <span className="kpi-unit">mph</span>
+          </div>
+          <span className="kpi-sub-metric">
+            {maxWindMph === null
+              ? 'Observation pending'
+              : maxWindMph >= 55
+              ? 'NO_TRAVEL threshold exceeded'
+              : maxWindMph >= 45
+              ? 'Crosswind risk for >30k lbs'
+              : 'Safe for commercial heavy loads'}
+          </span>
+          <span className="kpi-caption">Max wind speed along corridor</span>
+        </div>
+
+        {/* KPI 3: Total Distance */}
         <div className="kpi-card">
           <div className="kpi-card-header">
             <span className="kpi-card-title">Total Distance</span>
@@ -125,7 +163,7 @@ export function SafetyDashboard({
           <span className="kpi-caption">OpenRouteService HGV road path</span>
         </div>
 
-        {/* KPI 3: Estimated Duration */}
+        {/* KPI 4: Estimated Duration */}
         <div className="kpi-card">
           <div className="kpi-card-header">
             <span className="kpi-card-title">Estimated Duration</span>
@@ -140,7 +178,7 @@ export function SafetyDashboard({
           <span className="kpi-caption">At commercial truck profile</span>
         </div>
 
-        {/* KPI 4: High-Risk Miles */}
+        {/* KPI 5: High-Risk Miles */}
         <div className={`kpi-card ${Number(highRiskMiles) > 0 ? 'kpi-warning' : 'kpi-safe'}`}>
           <div className="kpi-card-header">
             <span className="kpi-card-title">High-Risk Miles</span>
@@ -156,7 +194,7 @@ export function SafetyDashboard({
           <span className="kpi-caption">Adverse conditions along corridor</span>
         </div>
 
-        {/* KPI 5: Weather Alerts */}
+        {/* KPI 6: Weather Alerts */}
         <div className={`kpi-card ${severeAlertsCount > 0 ? 'kpi-danger' : 'kpi-safe'}`}>
           <div className="kpi-card-header">
             <span className="kpi-card-title">Weather Alerts</span>
@@ -177,11 +215,10 @@ export function SafetyDashboard({
       <div className="dashboard-transparency-note">
         <span className="note-badge">Telemetry Methodology</span>
         <span className="note-text">
-          <strong>Measured Data:</strong> Route geometry and highway mileage are computed via OpenRouteService HGV road networks.
-          {' '}<strong>Modeled Estimates:</strong> ETAs, fuel consumption, and weather risk scores are projected using Open-Meteo deterministic 0–48h forecasts matched to waypoint arrival intervals.
+          <strong>Measured Data:</strong> Route geometry and highway mileage are computed via commercial HGV road networks.
+          <strong>Modeled Data:</strong> Checkpoint weather, wind velocity (mph), ETA trajectories, and safety risk scores are deterministically evaluated from meteorological APIs.
         </span>
       </div>
     </section>
   )
 }
-
