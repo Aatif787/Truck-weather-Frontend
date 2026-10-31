@@ -462,6 +462,9 @@
 
 .checkpoint-table-wrapper {
   overflow-x: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
 }
 
 .checkpoint-table {
@@ -474,7 +477,7 @@
 .checkpoint-table th {
   background: var(--bg-page);
   color: var(--text-secondary);
-  padding: 0.6rem 0.75rem;
+  padding: 0.65rem 0.75rem;
   border-bottom: 1px solid var(--border-color);
   font-weight: 600;
   white-space: nowrap;
@@ -485,10 +488,28 @@
   border-bottom: 1px solid var(--border-color);
   color: var(--text-primary);
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 .checkpoint-table tr:last-child td {
   border-bottom: none;
+}
+
+.checkpoint-table tr:hover td {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+.cp-metric-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.cp-metric-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 /* Map Section */

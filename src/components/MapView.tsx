@@ -1204,20 +1204,27 @@ export function MapView({
                   {inspectorData.wind_gusts_mph !== null && inspectorData.wind_gusts_mph !== undefined && inspectorData.wind_gusts_mph > (inspectorData.wind_speed_mph || 0) && (
                     <span style={{ fontSize: '0.8rem', color: '#D97706', fontWeight: 600 }}> (Gusts: {Math.round(inspectorData.wind_gusts_mph)} mph)</span>
                   )}{' '}
-                  <span className={`risk-badge badge-${inspectorData.wind_risk.toLowerCase()}`}>
+                  <span className={`risk-badge badge-${inspectorData.wind_risk.toLowerCase().replace('_', '-')}`}>
                     {inspectorData.wind_risk}
                   </span>
                 </span>
                 <span className="ins-sub">
-                  Load-adjusted risk: <strong>{inspectorData.load_adjusted_wind_risk}</strong>
+                  Load-adjusted risk: <strong className={`risk-badge badge-${inspectorData.load_adjusted_wind_risk.toLowerCase().replace('_', '-')}`} style={{ padding: '0.1rem 0.35rem', fontSize: '0.7rem' }}>{inspectorData.load_adjusted_wind_risk}</strong>
                 </span>
               </div>
 
               <div className="inspector-item">
                 <span className="ins-label">Precipitation (Rain / Snow)</span>
                 <span className="ins-value">
-                  Rain: {inspectorData.rain_intensity_in_hr ?? 0} in/hr | Snow:{' '}
-                  {inspectorData.snow_intensity_in_hr ?? 0} in/hr
+                  Rain: {inspectorData.rain_intensity_in_hr !== null && inspectorData.rain_intensity_in_hr !== undefined ? `${inspectorData.rain_intensity_in_hr} in` : '0 in'}{' '}
+                  <span className={`risk-badge badge-${inspectorData.rain_risk.toLowerCase().replace('_', '-')}`} style={{ padding: '0.1rem 0.35rem', fontSize: '0.7rem' }}>
+                    {inspectorData.rain_risk}
+                  </span>
+                  {' '}| Snow:{' '}
+                  {inspectorData.snow_intensity_in_hr !== null && inspectorData.snow_intensity_in_hr !== undefined ? `${inspectorData.snow_intensity_in_hr} in` : '0 in'}{' '}
+                  <span className={`risk-badge badge-${inspectorData.snow_risk.toLowerCase().replace('_', '-')}`} style={{ padding: '0.1rem 0.35rem', fontSize: '0.7rem' }}>
+                    {inspectorData.snow_risk}
+                  </span>
                 </span>
                 <span className="ins-sub">
                   Rain: {inspectorData.rain_risk} | Snow: {inspectorData.snow_risk}

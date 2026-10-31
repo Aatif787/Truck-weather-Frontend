@@ -1073,26 +1073,40 @@ function App() {
                                     </td>
                                     <td>{formatDateTime(cp.estimated_arrival_time)}</td>
                                     <td>
-                                      {cp.wind_speed_mph !== null ? `${cp.wind_speed_mph.toFixed(1)} mph ` : 'N/A '}
-                                      <span className={`risk-badge ${getRiskClass(cp.wind_risk)}`}>
-                                        {cp.wind_risk}
-                                      </span>
+                                      <div className="cp-metric-cell">
+                                        <span className="cp-metric-val">
+                                          {cp.wind_speed_mph !== null && cp.wind_speed_mph !== undefined
+                                            ? `${cp.wind_speed_mph.toFixed(1)} mph`
+                                            : 'N/A'}
+                                        </span>
+                                        <span className={`risk-badge ${getRiskClass(cp.wind_risk)}`}>
+                                          {cp.wind_risk}
+                                        </span>
+                                      </div>
                                     </td>
                                     <td>
-                                      {cp.rain_intensity_in_hr !== null
-                                        ? `${cp.rain_intensity_in_hr} in `
-                                        : '0 in '}
-                                      <span className={`risk-badge ${getRiskClass(cp.rain_risk)}`}>
-                                        {cp.rain_risk}
-                                      </span>
+                                      <div className="cp-metric-cell">
+                                        <span className="cp-metric-val">
+                                          {cp.rain_intensity_in_hr !== null && cp.rain_intensity_in_hr !== undefined
+                                            ? `${cp.rain_intensity_in_hr === 0 ? '0' : Number(cp.rain_intensity_in_hr.toFixed(3))} in`
+                                            : '0 in'}
+                                        </span>
+                                        <span className={`risk-badge ${getRiskClass(cp.rain_risk)}`}>
+                                          {cp.rain_risk}
+                                        </span>
+                                      </div>
                                     </td>
                                     <td>
-                                      {cp.snow_intensity_in_hr !== null
-                                        ? `${cp.snow_intensity_in_hr} in `
-                                        : '0 in '}
-                                      <span className={`risk-badge ${getRiskClass(cp.snow_risk)}`}>
-                                        {cp.snow_risk}
-                                      </span>
+                                      <div className="cp-metric-cell">
+                                        <span className="cp-metric-val">
+                                          {cp.snow_intensity_in_hr !== null && cp.snow_intensity_in_hr !== undefined
+                                            ? `${cp.snow_intensity_in_hr === 0 ? '0' : Number(cp.snow_intensity_in_hr.toFixed(3))} in`
+                                            : '0 in'}
+                                        </span>
+                                        <span className={`risk-badge ${getRiskClass(cp.snow_risk)}`}>
+                                          {cp.snow_risk}
+                                        </span>
+                                      </div>
                                     </td>
                                     <td>
                                       <span
