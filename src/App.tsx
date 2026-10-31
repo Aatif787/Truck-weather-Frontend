@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react'
+import { useState, useEffect, useRef, useMemo, type FormEvent } from 'react'
 import './App.css'
 import { MapView } from './components/MapView'
 import { SafetyDashboard } from './components/SafetyDashboard'
@@ -92,6 +92,54 @@ function getLoadRuleAdvice(weight: number) {
   }
 }
 
+function computeLoadAdjustedRisks(
+  windMph: number | null,
+  baseWindRisk: string,
+  rainRisk: string,
+  snowRisk: string,
+  weight: number
+): { loadAdjustedWindRisk: string; combinedRisk: string } {
+  const ORDER: Record<string, number> = {
+    LOW: 0,
+    MODERATE: 1,
+    HIGH: 2,
+    SEVERE: 3,
+    NO_TRAVEL: 4,
+    UNKNOWN: -1,
+  }
+  const RANKS = ['LOW', 'MODERATE', 'HIGH', 'SEVERE', 'NO_TRAVEL']
+
+  let loadWind = baseWindRisk || 'UNKNOWN'
+  if (windMph !== null) {
+    if (windMph >= 55) {
+      loadWind = 'NO_TRAVEL'
+    } else if (windMph >= 45 && weight > 30000) {
+      loadWind = 'NO_TRAVEL'
+    } else if (windMph >= 35 && weight > 40000) {
+      loadWind = 'SEVERE'
+    } else {
+      if (windMph < 25) loadWind = 'LOW'
+      else if (windMph < 35) loadWind = 'MODERATE'
+      else if (windMph < 45) loadWind = 'HIGH'
+      else if (windMph < 55) loadWind = 'SEVERE'
+      else loadWind = 'NO_TRAVEL'
+    }
+  }
+
+  const risksToCompare = [loadWind, rainRisk, snowRisk]
+  let maxVal = 0
+  for (const r of risksToCompare) {
+    const v = ORDER[r] ?? 0
+    if (v > maxVal) maxVal = v
+  }
+  const combined = RANKS[maxVal] || 'LOW'
+
+  return {
+    loadAdjustedWindRisk: loadWind,
+    combinedRisk: combined,
+  }
+}
+
 function App() {
   const [origin, setOrigin] = useState('Heidelberg, Germany')
   const [destination, setDestination] = useState('Mannheim, Germany')
@@ -109,6 +157,8 @@ function App() {
   const [selectedRouteId, setSelectedRouteId] = useState<string>('route-1')
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<Checkpoint | null>(null)
   const [expandedRouteId, setExpandedRouteId] = useState<string | null>(null)
+  const [whatIfWeight, setWhatIfWeight] = useState<number | null>(null)
+  const [compareRouteIds, setCompareRouteIds] = useState<string[]>([])
 
   // Scroll effect states
   const [scrollProgress, setScrollProgress] = useState(0)
@@ -256,6 +306,8 @@ function App() {
     setError(null)
     setData(null)
     setSelectedCheckpoint(null)
+    setWhatIfWeight(null)
+    setCompareRouteIds([])
 
     try {
       const departureDate = new Date(departureDatetime)
@@ -305,8 +357,52 @@ function App() {
     }
   }
 
+  const displayRoutes = useMemo(() => {
+    if (!data?.routes) return []
+    if (whatIfWeight === null) return data.routes
+
+    return data.routes.map((route) => {
+      const updatedCheckpoints = (route.checkpoints || []).map((cp) => {
+        const { loadAdjustedWindRisk, combinedRisk } = computeLoadAdjustedRisks(
+          cp.wind_speed_mph,
+          cp.wind_risk,
+          cp.rain_risk,
+          cp.snow_risk,
+          whatIfWeight
+        )
+
+        const updatedHourly = cp.hourly_forecasts?.map((h) => {
+          const hRisks = computeLoadAdjustedRisks(
+            h.wind_speed_mph,
+            h.wind_risk,
+            h.rain_risk,
+            h.snow_risk,
+            whatIfWeight
+          )
+          return {
+            ...h,
+            load_adjusted_wind_risk: hRisks.loadAdjustedWindRisk,
+            final_risk: hRisks.combinedRisk,
+          }
+        })
+
+        return {
+          ...cp,
+          load_adjusted_wind_risk: loadAdjustedWindRisk,
+          final_risk: combinedRisk,
+          hourly_forecasts: updatedHourly,
+        }
+      })
+
+      return {
+        ...route,
+        checkpoints: updatedCheckpoints,
+      }
+    })
+  }, [data?.routes, whatIfWeight])
+
   const recommendedRoute = data?.routes.find((r) => r.id === data.recommended_route_id)
-  const currentSelectedRoute = data?.routes.find((r) => r.id === selectedRouteId) || data?.routes[0]
+  const currentSelectedRoute = displayRoutes.find((r) => r.id === selectedRouteId) || displayRoutes[0]
   const severeAlertsCount = (data?.severe_alerts || []).filter((a) => a.route_id === selectedRouteId).length
 
   return (
@@ -535,6 +631,49 @@ function App() {
             )
           })()}
 
+          {/* What-If Cargo Weight Simulation Slider */}
+          <div className={`what-if-load-container ${!data ? 'what-if-disabled' : ''}`}>
+            <div className="what-if-header">
+              <div className="what-if-title-group">
+                <span className="what-if-icon">🔬</span>
+                <span className="what-if-label">What-If Load Simulation:</span>
+                <strong className="what-if-current-weight">
+                  {(whatIfWeight ?? (Number(loadWeightLbs) || 35000)).toLocaleString()} lbs
+                </strong>
+              </div>
+              {whatIfWeight !== null && (
+                <button
+                  type="button"
+                  className="what-if-reset-btn"
+                  onClick={() => setWhatIfWeight(null)}
+                  title="Reset to dispatched cargo weight"
+                >
+                  ↺ Use dispatched load ({(Number(loadWeightLbs) || 35000).toLocaleString()} lbs)
+                </button>
+              )}
+            </div>
+            <div className="what-if-controls">
+              <input
+                id="what-if-weight-slider"
+                type="range"
+                min="10000"
+                max="45000"
+                step="1000"
+                value={whatIfWeight ?? (Math.min(45000, Math.max(10000, Number(loadWeightLbs) || 35000)))}
+                onChange={(e) => setWhatIfWeight(Number(e.target.value))}
+                disabled={!data || loading}
+                aria-label="What-if gross cargo weight simulation slider"
+                className="what-if-slider"
+              />
+              <div className="what-if-ticks">
+                <span>10k lbs (Light)</span>
+                <span>30k lbs (Heavy Tier)</span>
+                <span>40k lbs (Severe Tier)</span>
+                <span>45k lbs (Max)</span>
+              </div>
+            </div>
+          </div>
+
           <div className="form-actions-row">
             <button type="submit" className="submit-btn" disabled={loading}>
               {loading ? (
@@ -570,6 +709,20 @@ function App() {
 
         {data && (
           <div className="results-container" ref={resultsRef}>
+            {whatIfWeight !== null && (
+              <div className="what-if-preview-banner scroll-reveal">
+                <span className="what-if-preview-text">
+                  🔬 WHAT-IF PREVIEW at <strong>{whatIfWeight.toLocaleString()} lbs</strong> — dispatched recommendation unchanged
+                </span>
+                <button
+                  type="button"
+                  className="what-if-preview-reset-btn"
+                  onClick={() => setWhatIfWeight(null)}
+                >
+                  Reset to Dispatched Load
+                </button>
+              </div>
+            )}
             {/* Top Warning Banner if NO_TRAVEL conditions prevent safe travel */}
             {data.warning && (
               <div className="warning-banner scroll-reveal">
@@ -660,7 +813,7 @@ function App() {
             {/* FEATURE 6: INTERACTIVE MAP EXPERIENCE */}
             <div ref={mapViewRef} className="map-scroll-wrapper scroll-reveal">
               <MapView
-                routes={data.routes}
+                routes={displayRoutes}
                 selectedRouteId={selectedRouteId}
                 onSelectRoute={(id) => setSelectedRouteId(id)}
                 selectedCheckpoint={selectedCheckpoint}
@@ -668,14 +821,27 @@ function App() {
                 originName={data.origin.name}
                 destinationName={data.destination.name}
                 departureDatetime={data.departure_datetime}
+                compareRouteIds={compareRouteIds}
               />
             </div>
 
             {/* DETAILED ROUTE CARDS & CHECKPOINTS INSPECTION */}
             <div className="route-comparison-section scroll-reveal">
-              <h3>Detailed Route Cards & Waypoint Itinerary ({data.routes_count})</h3>
+              <div className="route-comparison-header-row">
+                <h3>Detailed Route Cards & Waypoint Itinerary ({data.routes_count})</h3>
+                {compareRouteIds.length > 0 && (
+                  <button
+                    type="button"
+                    className="clear-compare-btn"
+                    onClick={() => setCompareRouteIds([])}
+                    title="Clear comparison routes overlay"
+                  >
+                    Clear compare ({compareRouteIds.length})
+                  </button>
+                )}
+              </div>
               <div className="routes-list">
-                {data.routes.map((route) => {
+                {displayRoutes.map((route) => {
                   const isSelected = selectedRouteId === route.id
                   const isExpanded = expandedRouteId === route.id
 
@@ -711,6 +877,25 @@ function App() {
                             title="Copy complete route manifest for driver dispatch"
                           >
                             📋 Manifest
+                          </button>
+                          <button
+                            type="button"
+                            className={`compare-route-btn ${compareRouteIds.includes(route.id) ? 'active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCompareRouteIds((prev) => {
+                                if (prev.includes(route.id)) {
+                                  return prev.filter((id) => id !== route.id)
+                                }
+                                if (prev.length >= 2) {
+                                  return [prev[1], route.id]
+                                }
+                                return [...prev, route.id]
+                              })
+                            }}
+                            title="Toggle route comparison overlay on map (max 2)"
+                          >
+                            {compareRouteIds.includes(route.id) ? '✓ Comparing' : 'Compare'}
                           </button>
                           <button
                             type="button"
@@ -801,10 +986,9 @@ function App() {
                             <table className="checkpoint-table">
                               <thead>
                                 <tr>
-                                  <th>Marker & Corridor</th>
+                                  <th>Marker</th>
                                   <th>ETA</th>
-                                  <th>Conditions</th>
-                                  <th>Wind & Gusts</th>
+                                  <th>Wind</th>
                                   <th>Rain</th>
                                   <th>Snow</th>
                                   <th>Load-Adjusted Wind</th>
@@ -816,52 +1000,16 @@ function App() {
                                 {route.checkpoints.map((cp) => (
                                   <tr key={cp.checkpoint_index}>
                                     <td>
-                                      <div className="cp-marker-col">
-                                        <strong>
-                                          CP {cp.checkpoint_index} ({cp.distance_from_origin_miles.toFixed(0)} mi)
-                                        </strong>
-                                        {cp.road_name && (
-                                          <span className="cp-road-tag" title={cp.road_name}>
-                                            <span className="cp-road-icon" aria-hidden="true">🛣️</span> {cp.road_name}
-                                          </span>
-                                        )}
-                                      </div>
+                                      <strong>
+                                        CP {cp.checkpoint_index} ({cp.distance_from_origin_miles.toFixed(0)} mi)
+                                      </strong>
                                     </td>
                                     <td>{formatDateTime(cp.estimated_arrival_time)}</td>
                                     <td>
-                                      <div className="cp-condition-cell">
-                                        <span className="cp-weather-icon" title={cp.weather_description || 'Weather condition'}>
-                                          {cp.weather_icon || '⛅'}
-                                        </span>
-                                        <div className="cp-weather-info">
-                                          <span className="cp-temp-val">
-                                            {cp.temperature_f !== null && cp.temperature_f !== undefined
-                                              ? `${Math.round(cp.temperature_f)}°F`
-                                              : '--'}
-                                          </span>
-                                          <span className="cp-condition-desc">
-                                            {cp.weather_description || 'Clear'}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </td>
-                                    <td>
-                                      <div className="cp-wind-cell">
-                                        <div className="cp-wind-primary">
-                                          <span className="cp-wind-speed">
-                                            {cp.wind_speed_mph !== null ? `${cp.wind_speed_mph.toFixed(1)} mph` : 'N/A'}
-                                            {cp.wind_direction_cardinal ? ` ${cp.wind_direction_cardinal}` : ''}
-                                          </span>
-                                          <span className={`risk-badge ${getRiskClass(cp.wind_risk)}`}>
-                                            {cp.wind_risk}
-                                          </span>
-                                        </div>
-                                        {cp.wind_gusts_mph !== null && cp.wind_gusts_mph !== undefined && cp.wind_gusts_mph > (cp.wind_speed_mph || 0) && (
-                                          <span className="cp-gusts-text">
-                                            Gusts {Math.round(cp.wind_gusts_mph)} mph
-                                          </span>
-                                        )}
-                                      </div>
+                                      {cp.wind_speed_mph !== null ? `${cp.wind_speed_mph.toFixed(1)} mph ` : 'N/A '}
+                                      <span className={`risk-badge ${getRiskClass(cp.wind_risk)}`}>
+                                        {cp.wind_risk}
+                                      </span>
                                     </td>
                                     <td>
                                       {cp.rain_intensity_in_hr !== null

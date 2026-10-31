@@ -85,6 +85,7 @@ interface MapViewProps {
   originName: string
   destinationName: string
   departureDatetime: string
+  compareRouteIds?: string[]
 }
 
 const RISK_NUMERIC_MAP: Record<string, number> = {
@@ -151,6 +152,54 @@ function formatDateTimeDisplay(date: Date): string {
   }
 }
 
+function getCoordinateAtMiles(
+  coordinates: [number, number][],
+  targetMiles: number,
+  totalMiles: number
+): [number, number] {
+  if (!coordinates || coordinates.length === 0) return [0, 0]
+  if (coordinates.length === 1 || targetMiles <= 0) return coordinates[0]
+  if (targetMiles >= totalMiles) return coordinates[coordinates.length - 1]
+
+  const segDistances: number[] = []
+  let sumDist = 0
+
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const [lon1, lat1] = coordinates[i]
+    const [lon2, lat2] = coordinates[i + 1]
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLon = ((lon2 - lon1) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    const d = 3958.8 * c
+    segDistances.push(d)
+    sumDist += d
+  }
+
+  const ratio = totalMiles > 0 && sumDist > 0 ? sumDist / totalMiles : 1
+  const scaledTarget = targetMiles * ratio
+
+  let accumulated = 0
+  for (let i = 0; i < segDistances.length; i++) {
+    const nextAccum = accumulated + segDistances[i]
+    if (scaledTarget <= nextAccum) {
+      const segmentSpan = segDistances[i]
+      const t = segmentSpan > 0 ? (scaledTarget - accumulated) / segmentSpan : 0
+      const [lon1, lat1] = coordinates[i]
+      const [lon2, lat2] = coordinates[i + 1]
+      return [lon1 + t * (lon2 - lon1), lat1 + t * (lat2 - lat1)]
+    }
+    accumulated = nextAccum
+  }
+
+  return coordinates[coordinates.length - 1]
+}
+
 export function MapView({
   routes,
   selectedRouteId,
@@ -160,14 +209,71 @@ export function MapView({
   originName,
   destinationName,
   departureDatetime,
+  compareRouteIds = [],
 }: MapViewProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
+  const compMarkersRef = useRef<maplibregl.Marker[]>([])
+  const truckMarkerRef = useRef<maplibregl.Marker | null>(null)
   const [mapInitError, setMapInitError] = useState(false)
 
   // null = ETA Mode (truck arrival trajectory); number (0-48) = Corridor Forecast Offset Mode
   const [sliderOffset, setSliderOffset] = useState<number | null>(null)
+
+  // Timeline Auto-Play state
+  const [isPlaying, setIsPlaying] = useState(false)
+  const playTimerRef = useRef<number | null>(null)
+
+  const stopPlayback = () => {
+    if (playTimerRef.current !== null) {
+      clearInterval(playTimerRef.current)
+      playTimerRef.current = null
+    }
+    setIsPlaying(false)
+  }
+
+  const togglePlay = () => {
+    if (isPlaying) {
+      stopPlayback()
+    } else {
+      if (sliderOffset === null || sliderOffset >= 48) {
+        setSliderOffset(0)
+      }
+      setIsPlaying(true)
+    }
+  }
+
+  useEffect(() => {
+    if (isPlaying) {
+      playTimerRef.current = window.setInterval(() => {
+        setSliderOffset((prev) => {
+          const next = (prev ?? 0) + 1
+          if (next >= 48) {
+            if (playTimerRef.current !== null) {
+              clearInterval(playTimerRef.current)
+              playTimerRef.current = null
+            }
+            setIsPlaying(false)
+            return 48
+          }
+          return next
+        })
+      }, 900)
+    } else {
+      if (playTimerRef.current !== null) {
+        clearInterval(playTimerRef.current)
+        playTimerRef.current = null
+      }
+    }
+
+    return () => {
+      if (playTimerRef.current !== null) {
+        clearInterval(playTimerRef.current)
+        playTimerRef.current = null
+      }
+    }
+  }, [isPlaying])
 
   const selectedRoute = routes.find((r) => r.id === selectedRouteId) || routes[0]
 
@@ -316,6 +422,15 @@ export function MapView({
       mapRef.current = map
 
       return () => {
+        stopPlayback()
+        if (truckMarkerRef.current) {
+          truckMarkerRef.current.remove()
+          truckMarkerRef.current = null
+        }
+        markersRef.current.forEach((m) => m.remove())
+        markersRef.current = []
+        compMarkersRef.current.forEach((m) => m.remove())
+        compMarkersRef.current = []
         map.remove()
         mapRef.current = null
       }
@@ -331,15 +446,19 @@ export function MapView({
     if (!map) return
 
     const updateLayers = () => {
-      // Clear old route sources and layers
+      // Clear old route and comparison sources and layers
       routes.forEach((route) => {
         const lineLayerId = `layer-line-${route.id}`
         const casingLayerId = `layer-casing-${route.id}`
+        const compLineId = `layer-compare-${route.id}`
         const sourceId = `source-${route.id}`
+        const compSourceId = `source-compare-${route.id}`
 
         if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId)
         if (map.getLayer(casingLayerId)) map.removeLayer(casingLayerId)
+        if (map.getLayer(compLineId)) map.removeLayer(compLineId)
         if (map.getSource(sourceId)) map.removeSource(sourceId)
+        if (map.getSource(compSourceId)) map.removeSource(compSourceId)
       })
 
       if (map.getLayer('layer-corridor-gradient')) map.removeLayer('layer-corridor-gradient')
@@ -412,6 +531,43 @@ export function MapView({
           map.getCanvas().style.cursor = ''
         })
       })
+
+      // Add comparison routes (blue dashed line)
+      if (compareRouteIds && compareRouteIds.length > 0) {
+        compareRouteIds.forEach((compId) => {
+          if (compId === selectedRouteId) return
+          const compRoute = routes.find((r) => r.id === compId)
+          if (!compRoute || !compRoute.geometry) return
+
+          const compSourceId = `source-compare-${compRoute.id}`
+          const compLineId = `layer-compare-${compRoute.id}`
+
+          map.addSource(compSourceId, {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              properties: {},
+              geometry: compRoute.geometry as any,
+            },
+          })
+
+          map.addLayer({
+            id: compLineId,
+            type: 'line',
+            source: compSourceId,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round',
+            },
+            paint: {
+              'line-color': '#3b82f6',
+              'line-dasharray': [3, 2],
+              'line-width': 4,
+              'line-opacity': 0.85,
+            },
+          })
+        })
+      }
 
       // Add Continuous Weather Gradient Heatmap Layer along the selected route
       if (selectedRoute && selectedRoute.checkpoints && selectedRoute.checkpoints.length > 0) {
@@ -544,13 +700,15 @@ export function MapView({
     } else {
       map.once('load', updateLayers)
     }
-  }, [routes, selectedRouteId, onSelectRoute, selectedRoute, sliderOffset])
+  }, [routes, selectedRouteId, onSelectRoute, selectedRoute, sliderOffset, compareRouteIds])
 
   // Update Markers (Start, Dest, and Checkpoints)
   useEffect(() => {
     // Clear old markers
     markersRef.current.forEach((m) => m.remove())
     markersRef.current = []
+    compMarkersRef.current.forEach((m) => m.remove())
+    compMarkersRef.current = []
 
     const map = mapRef.current
     if (!map || !selectedRoute) return
@@ -625,6 +783,34 @@ export function MapView({
         markersRef.current.push(marker)
       })
     }
+
+    // 4. Comparison Route Markers (small faded blue dots)
+    if (compareRouteIds && compareRouteIds.length > 0) {
+      compareRouteIds.forEach((compId) => {
+        if (compId === selectedRouteId) return
+        const compRoute = routes.find((r) => r.id === compId)
+        if (!compRoute || !compRoute.checkpoints) return
+
+        compRoute.checkpoints.forEach((cp) => {
+          const compEl = document.createElement('div')
+          compEl.className = 'map-compare-marker'
+          compEl.style.width = '12px'
+          compEl.style.height = '12px'
+          compEl.style.borderRadius = '50%'
+          compEl.style.backgroundColor = '#3b82f6'
+          compEl.style.border = '2px solid #ffffff'
+          compEl.style.opacity = '0.65'
+          compEl.style.boxShadow = '0 1px 3px rgba(0,0,0,0.35)'
+          compEl.title = `[Compare: ${compRoute.name}] CP #${cp.checkpoint_index + 1} (${cp.distance_from_origin_miles.toFixed(0)} mi)`
+
+          const marker = new maplibregl.Marker({ element: compEl })
+            .setLngLat(cp.coordinates)
+            .addTo(map)
+
+          compMarkersRef.current.push(marker)
+        })
+      })
+    }
   }, [
     selectedRoute,
     selectedCheckpoint,
@@ -632,7 +818,48 @@ export function MapView({
     originName,
     destinationName,
     sliderOffset,
+    compareRouteIds,
   ])
+
+  // Update Truck Position Marker along the selected route when sliderOffset is active
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || sliderOffset === null || !selectedRoute) {
+      if (truckMarkerRef.current) {
+        truckMarkerRef.current.remove()
+        truckMarkerRef.current = null
+      }
+      return
+    }
+
+    const coords = selectedRoute.geometry?.coordinates
+    if (!coords || coords.length === 0) return
+
+    const durationHrs = (selectedRoute.duration_seconds || 1) / 3600
+    const progress = Math.min(1.0, Math.max(0.0, sliderOffset / durationHrs))
+    const targetMi = progress * selectedRoute.distance_miles
+
+    const truckCoord = getCoordinateAtMiles(coords, targetMi, selectedRoute.distance_miles)
+
+    if (!truckMarkerRef.current) {
+      const truckEl = document.createElement('div')
+      truckEl.className = 'map-truck-marker'
+      truckEl.innerHTML = '<span style="font-size: 28px; line-height: 1; display: inline-block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45)); transform: translateY(-4px);">🚛</span>'
+      truckEl.title = `Simulated truck location at +${sliderOffset}h (~${targetMi.toFixed(1)} mi)`
+
+      const marker = new maplibregl.Marker({ element: truckEl, anchor: 'center' })
+        .setLngLat(truckCoord)
+        .addTo(map)
+
+      truckMarkerRef.current = marker
+    } else {
+      truckMarkerRef.current.setLngLat(truckCoord)
+      const el = truckMarkerRef.current.getElement()
+      if (el) {
+        el.title = `Simulated truck location at +${sliderOffset}h (~${targetMi.toFixed(1)} mi)`
+      }
+    }
+  }, [sliderOffset, selectedRoute])
 
   const inspectorData = selectedCheckpoint ? getCheckpointActiveData(selectedCheckpoint) : null
 
@@ -692,8 +919,19 @@ export function MapView({
           <div className="slider-quick-buttons">
             <button
               type="button"
+              className={`slider-step-btn ${isPlaying ? 'btn-active' : ''}`}
+              onClick={togglePlay}
+              title={isPlaying ? 'Pause corridor timeline auto-play' : 'Auto-play corridor timeline (0 to 48h)'}
+            >
+              {isPlaying ? '⏸ Pause' : '▶ Play'}
+            </button>
+            <button
+              type="button"
               className="slider-step-btn"
-              onClick={() => setSliderOffset((prev) => Math.max(0, (prev ?? 0) - 1))}
+              onClick={() => {
+                stopPlayback()
+                setSliderOffset((prev) => Math.max(0, (prev ?? 0) - 1))
+              }}
               title="Step back 1 hour"
               disabled={sliderOffset === 0}
             >
@@ -702,7 +940,10 @@ export function MapView({
             <button
               type="button"
               className="slider-step-btn"
-              onClick={() => setSliderOffset((prev) => Math.min(48, (prev ?? 0) + 1))}
+              onClick={() => {
+                stopPlayback()
+                setSliderOffset((prev) => Math.min(48, (prev ?? 0) + 1))
+              }}
               title="Step forward 1 hour"
               disabled={sliderOffset === 48}
             >
@@ -711,7 +952,10 @@ export function MapView({
             <button
               type="button"
               className={`slider-btn ${sliderOffset === null ? 'btn-active' : ''}`}
-              onClick={() => setSliderOffset(null)}
+              onClick={() => {
+                stopPlayback()
+                setSliderOffset(null)
+              }}
               title="View weather forecasted at each checkpoint's estimated arrival time"
             >
               📍 Checkpoint ETAs
@@ -719,35 +963,50 @@ export function MapView({
             <button
               type="button"
               className={`slider-btn ${sliderOffset === 0 ? 'btn-active' : ''}`}
-              onClick={() => setSliderOffset(0)}
+              onClick={() => {
+                stopPlayback()
+                setSliderOffset(0)
+              }}
             >
               +0h (Departure)
             </button>
             <button
               type="button"
               className={`slider-btn ${sliderOffset === 6 ? 'btn-active' : ''}`}
-              onClick={() => setSliderOffset(6)}
+              onClick={() => {
+                stopPlayback()
+                setSliderOffset(6)
+              }}
             >
               +6h
             </button>
             <button
               type="button"
               className={`slider-btn ${sliderOffset === 12 ? 'btn-active' : ''}`}
-              onClick={() => setSliderOffset(12)}
+              onClick={() => {
+                stopPlayback()
+                setSliderOffset(12)
+              }}
             >
               +12h
             </button>
             <button
               type="button"
               className={`slider-btn ${sliderOffset === 24 ? 'btn-active' : ''}`}
-              onClick={() => setSliderOffset(24)}
+              onClick={() => {
+                stopPlayback()
+                setSliderOffset(24)
+              }}
             >
               +24h
             </button>
             <button
               type="button"
               className={`slider-btn ${sliderOffset === 48 ? 'btn-active' : ''}`}
-              onClick={() => setSliderOffset(48)}
+              onClick={() => {
+                stopPlayback()
+                setSliderOffset(48)
+              }}
             >
               +48h
             </button>
@@ -761,7 +1020,10 @@ export function MapView({
             max="48"
             step="1"
             value={sliderOffset ?? 0}
-            onChange={(e) => setSliderOffset(Number(e.target.value))}
+            onChange={(e) => {
+              stopPlayback()
+              setSliderOffset(Number(e.target.value))
+            }}
             aria-label="Trip corridor forecast timeline offset in hours"
             aria-valuemin={0}
             aria-valuemax={48}
@@ -859,6 +1121,19 @@ export function MapView({
             <span className="legend-color" style={{ backgroundColor: RISK_COLORS.UNKNOWN }} /> Unknown
           </span>
         </div>
+        {compareRouteIds && compareRouteIds.length > 0 && (
+          <div className="compare-legend-row" style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid #E4E4E7', display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.85rem' }}>
+            <span style={{ fontWeight: 600, color: '#1E40AF' }}>Compare Mode:</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#1E293B' }}>
+              <span style={{ display: 'inline-block', width: '22px', height: '0', borderTop: '3px dashed #3B82F6' }} />
+              Comparison Corridor ({compareRouteIds.map((id) => routes.find((r) => r.id === id)?.name || id).join(', ')})
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#64748B' }}>
+              <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#3B82F6', opacity: 0.65 }} />
+              Comparison Checkpoints
+            </span>
+          </div>
+        )}
       </div>
       <p className="corridor-disclosure">
         * Note: The route corridor highlights estimated risk based on weather sampled at periodic
