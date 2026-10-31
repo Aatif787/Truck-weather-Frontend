@@ -33,6 +33,13 @@ function formatDateTime(isoString: string): string {
   }
 }
 
+const peakWindForRoute = (route: RouteItem): number | null => {
+  const winds = (route.checkpoints || [])
+    .map((cp) => cp.wind_speed_mph)
+    .filter((w): w is number => w !== null && w !== undefined);
+  return winds.length ? Math.max(...winds) : null;
+};
+
 function getRiskClass(risk: string): string {
   switch (risk) {
     case 'LOW':
@@ -143,6 +150,7 @@ function App() {
       `Safety Score: ${route.safety_score !== undefined ? `${Math.round(route.safety_score)}/100` : 'N/A'}`,
       `Severe Weather Miles: ${route.severe_miles ?? 0} mi`,
       `High Risk Miles: ${route.high_miles ?? 0} mi`,
+      `Peak Wind: ${peakWindForRoute(route) !== null ? `${peakWindForRoute(route)!.toFixed(1)} mph` : 'N/A'}`,
       `Est. Fuel Gallons: ${(route.distance_miles / fuelMpg).toFixed(1)} gal (@ ${fuelMpg} MPG)`,
       `Est. Fuel Cost: $${((route.distance_miles / fuelMpg) * fuelPrice).toFixed(2)} (@ $${fuelPrice}/gal)`,
       ...(route.roads_travel_order && route.roads_travel_order.length > 0
@@ -747,6 +755,37 @@ function App() {
                         <div className="detail-item">
                           <span className="label">Avg Risk Score</span>
                           <span className="value">{route.average_risk_score ?? 0}</span>
+                        </div>
+                        <div className="detail-item">
+                          <span className="label">Peak Wind</span>
+                          {(() => {
+                            const peak = peakWindForRoute(route)
+                            const color =
+                              peak === null
+                                ? 'var(--text-secondary)'
+                                : peak >= 55
+                                ? 'var(--risk-no-travel)'
+                                : peak >= 45
+                                ? 'var(--risk-high)'
+                                : peak >= 25
+                                ? 'var(--risk-moderate)'
+                                : 'var(--risk-low)'
+                            const badgeCls =
+                              peak === null
+                                ? ''
+                                : peak >= 55
+                                ? 'peak-wind-severe'
+                                : peak >= 45
+                                ? 'peak-wind-high'
+                                : peak >= 25
+                                ? 'peak-wind-moderate'
+                                : 'peak-wind-low'
+                            return (
+                              <span className={`value ${badgeCls}`} style={{ color }}>
+                                {peak !== null ? `${peak.toFixed(1)} mph` : 'N/A'}
+                              </span>
+                            )
+                          })()}
                         </div>
                         <div className="detail-item">
                           <span className="label">Checkpoints</span>
