@@ -6,6 +6,7 @@ interface SafetyDashboardProps {
   onSelectRoute: (id: string) => void
   severeAlertsCount: number
   onDownloadPdf: () => void
+  loadWeightLbs?: number
 }
 
 function formatDuration(seconds: number): string {
@@ -22,6 +23,7 @@ export function SafetyDashboard({
   onSelectRoute,
   severeAlertsCount,
   onDownloadPdf,
+  loadWeightLbs = 0,
 }: SafetyDashboardProps) {
   const safetyScore = selectedRoute.safety_score !== undefined
     ? Math.round(selectedRoute.safety_score)
@@ -142,7 +144,9 @@ export function SafetyDashboard({
               ? 'NO_TRAVEL threshold exceeded'
               : maxWindMph >= 45
               ? 'Crosswind risk for >30k lbs'
-              : 'Safe for commercial heavy loads'}
+              : (loadWeightLbs ?? 0) > 30000
+              ? 'Safe for commercial heavy loads'
+              : 'Safe for standard commercial loads'}
           </span>
           <span className="kpi-caption">Max wind speed along corridor</span>
         </div>

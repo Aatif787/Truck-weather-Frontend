@@ -305,6 +305,8 @@ export function MapView({
         if (map.getSource(sourceId)) map.removeSource(sourceId)
       })
 
+      if (map.getLayer('layer-corridor-gradient')) map.removeLayer('layer-corridor-gradient')
+      if (map.getSource('source-corridor-gradient')) map.removeSource('source-corridor-gradient')
       if (map.getLayer('layer-corridor-highlight')) map.removeLayer('layer-corridor-highlight')
       if (map.getSource('source-corridor-highlight')) map.removeSource('source-corridor-highlight')
 
@@ -374,59 +376,86 @@ export function MapView({
         })
       })
 
-      // Add Weather Corridor Buffer Layer along the selected route
+      // Add Continuous Weather Gradient Heatmap Layer along the selected route
       if (selectedRoute && selectedRoute.checkpoints && selectedRoute.checkpoints.length > 0) {
-        const coords = selectedRoute.geometry.coordinates
-        if (coords.length > 1) {
-          const corridorFeatures = []
+        const coords = selectedRoute.geometry?.coordinates
+        if (coords && coords.length > 1) {
           const cps = selectedRoute.checkpoints
+          const totalDist =
+            selectedRoute.distance_miles ||
+            cps[cps.length - 1].distance_from_origin_miles ||
+            1
+
+          // Build strictly monotonic gradient stops along line-progress (0.0 to 1.0)
+          const gradientStops: (number | string)[] = []
+          let lastP = -1
 
           for (let i = 0; i < cps.length; i++) {
             const cp = cps[i]
             const activeData = getCheckpointActiveData(cp)
-            const riskColor = RISK_COLORS[activeData.risk] || RISK_COLORS.UNKNOWN
+            const color = RISK_COLORS[activeData.risk] || RISK_COLORS.UNKNOWN
 
-            const nextCp = cps[i + 1]
-            const pt1 = cp.coordinates
-            const pt2 = nextCp ? nextCp.coordinates : pt1
+            let p = totalDist > 0 ? cp.distance_from_origin_miles / totalDist : i / Math.max(1, cps.length - 1)
+            p = Math.min(1.0, Math.max(0.0, p))
 
-            corridorFeatures.push({
-              type: 'Feature',
-              properties: {
-                risk: activeData.risk,
-                color: riskColor,
-              },
-              geometry: {
-                type: 'LineString',
-                coordinates: [pt1, pt2],
-              },
-            })
+            if (i === 0) p = 0.0
+            if (i === cps.length - 1) p = 1.0
+
+            if (p <= lastP) {
+              p = Math.min(1.0, lastP + 0.001)
+            }
+
+            gradientStops.push(Number(p.toFixed(4)), color)
+            lastP = p
           }
 
-          map.addSource('source-corridor-highlight', {
+          // Ensure stops cover from 0.0 to 1.0
+          if (gradientStops.length >= 2 && gradientStops[0] !== 0) {
+            gradientStops[0] = 0
+          }
+          if (gradientStops.length >= 2 && gradientStops[gradientStops.length - 2] !== 1) {
+            const lastColor = gradientStops[gradientStops.length - 1] as string
+            gradientStops.push(1.0, lastColor)
+          }
+          if (gradientStops.length < 4) {
+            gradientStops.push(1.0, RISK_COLORS.LOW)
+          }
+
+          map.addSource('source-corridor-gradient', {
             type: 'geojson',
+            lineMetrics: true,
             data: {
-              type: 'FeatureCollection',
-              features: corridorFeatures as any,
+              type: 'Feature',
+              properties: {},
+              geometry: selectedRoute.geometry as any,
             },
           })
 
+          const casingId = `layer-casing-${selectedRoute.id}`
+          const beforeId = map.getLayer(casingId) ? casingId : undefined
+
           map.addLayer(
             {
-              id: 'layer-corridor-highlight',
+              id: 'layer-corridor-gradient',
               type: 'line',
-              source: 'source-corridor-highlight',
+              source: 'source-corridor-gradient',
               layout: {
                 'line-join': 'round',
                 'line-cap': 'round',
               },
               paint: {
-                'line-color': ['get', 'color'],
-                'line-width': 14,
-                'line-opacity': 0.4,
+                'line-gradient': [
+                  'interpolate',
+                  ['linear'],
+                  ['line-progress'],
+                  ...gradientStops,
+                ] as any,
+                'line-width': 16,
+                'line-opacity': 0.7,
+                'line-blur': 2,
               },
             },
-            `layer-casing-${selectedRoute.id}`
+            beforeId
           )
         }
       }

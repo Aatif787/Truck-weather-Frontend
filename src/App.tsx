@@ -528,7 +528,7 @@ function App() {
                 </>
               ) : (
                 <>
-                  <span>⚡ Calculate 3 Safe Routes</span>
+                  <span>⚡ Calculate Safe Routes</span>
                   <span className="btn-key-hint">Enter</span>
                 </>
               )}
@@ -588,6 +588,16 @@ function App() {
               </p>
             </div>
 
+            {/* Viable Alternatives Info Note if Fewer than 3 Routes */}
+            {data.routes_count < 3 && (
+              <div className="route-alternatives-info-note scroll-reveal">
+                <span className="info-icon">ℹ️</span>
+                <span>
+                  Routing engine returned {data.routes_count} viable alternative{data.routes_count === 1 ? '' : 's'} for this corridor.
+                </span>
+              </div>
+            )}
+
             {/* FEATURE 1: SAFETY ANALYTICS DASHBOARD */}
             {currentSelectedRoute && (
               <SafetyDashboard
@@ -596,6 +606,7 @@ function App() {
                 onSelectRoute={(id) => setSelectedRouteId(id)}
                 severeAlertsCount={severeAlertsCount}
                 onDownloadPdf={handleDownloadPdf}
+                loadWeightLbs={data.load_weight_lbs}
               />
             )}
 
