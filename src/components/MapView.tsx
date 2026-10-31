@@ -87,6 +87,43 @@ interface MapViewProps {
   departureDatetime: string
 }
 
+const RISK_NUMERIC_MAP: Record<string, number> = {
+  LOW: 0.0,
+  MODERATE: 1.0,
+  HIGH: 2.0,
+  SEVERE: 3.0,
+  NO_TRAVEL: 4.0,
+  UNKNOWN: 3.0,
+}
+
+function getRiskScoreColor(score: number): string {
+  const s = Math.max(0, Math.min(4, score))
+  const u = s / 4.0
+  const stops = [
+    { p: 0.00, hex: '#22c55e', rgb: [34, 197, 94] },
+    { p: 0.25, hex: '#a3e635', rgb: [163, 230, 53] },
+    { p: 0.50, hex: '#eab308', rgb: [234, 179, 8] },
+    { p: 0.70, hex: '#f97316', rgb: [249, 115, 22] },
+    { p: 0.85, hex: '#ef4444', rgb: [239, 68, 68] },
+    { p: 1.00, hex: '#7f1d1d', rgb: [127, 29, 29] },
+  ]
+  if (u <= stops[0].p) return stops[0].hex
+  if (u >= stops[stops.length - 1].p) return stops[stops.length - 1].hex
+
+  for (let i = 0; i < stops.length - 1; i++) {
+    const s0 = stops[i]
+    const s1 = stops[i + 1]
+    if (u >= s0.p && u <= s1.p) {
+      const frac = (u - s0.p) / (s1.p - s0.p)
+      const r = Math.round(s0.rgb[0] + frac * (s1.rgb[0] - s0.rgb[0]))
+      const g = Math.round(s0.rgb[1] + frac * (s1.rgb[1] - s0.rgb[1]))
+      const b = Math.round(s0.rgb[2] + frac * (s1.rgb[2] - s0.rgb[2]))
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+    }
+  }
+  return '#22c55e'
+}
+
 const RISK_COLORS: Record<string, string> = {
   LOW: '#15803D',       // Green
   MODERATE: '#A16207',  // Yellow / Ochre
@@ -386,30 +423,58 @@ export function MapView({
             cps[cps.length - 1].distance_from_origin_miles ||
             1
 
-          // Build strictly monotonic gradient stops along line-progress (0.0 to 1.0)
+          // Interpolated points every ~2 miles along route geometry with linearly interpolated risk scores
+          const sampleInterval = 2.0 // miles
+          const numSamples = Math.max(8, Math.min(100, Math.round(totalDist / sampleInterval)))
+
+          const cpPoints = cps.map((cp) => {
+            const data = getCheckpointActiveData(cp)
+            const score = RISK_NUMERIC_MAP[data.risk] ?? 3.0
+            return {
+              dist: cp.distance_from_origin_miles,
+              score,
+            }
+          })
+
           const gradientStops: (number | string)[] = []
           let lastP = -1
 
-          for (let i = 0; i < cps.length; i++) {
-            const cp = cps[i]
-            const activeData = getCheckpointActiveData(cp)
-            const color = RISK_COLORS[activeData.risk] || RISK_COLORS.UNKNOWN
+          for (let step = 0; step <= numSamples; step++) {
+            let p = step / numSamples
+            const curDist = p * totalDist
 
-            let p = totalDist > 0 ? cp.distance_from_origin_miles / totalDist : i / Math.max(1, cps.length - 1)
+            let interpScore = cpPoints[0].score
+            if (curDist <= cpPoints[0].dist) {
+              interpScore = cpPoints[0].score
+            } else if (curDist >= cpPoints[cpPoints.length - 1].dist) {
+              interpScore = cpPoints[cpPoints.length - 1].score
+            } else {
+              for (let i = 0; i < cpPoints.length - 1; i++) {
+                const c0 = cpPoints[i]
+                const c1 = cpPoints[i + 1]
+                if (curDist >= c0.dist && curDist <= c1.dist) {
+                  const span = c1.dist - c0.dist
+                  const t = span > 0 ? (curDist - c0.dist) / span : 0
+                  interpScore = c0.score + t * (c1.score - c0.score)
+                  break
+                }
+              }
+            }
+
+            const color = getRiskScoreColor(interpScore)
+
             p = Math.min(1.0, Math.max(0.0, p))
-
-            if (i === 0) p = 0.0
-            if (i === cps.length - 1) p = 1.0
+            if (step === 0) p = 0.0
+            if (step === numSamples) p = 1.0
 
             if (p <= lastP) {
-              p = Math.min(1.0, lastP + 0.001)
+              p = Math.min(1.0, lastP + 0.0005)
             }
 
             gradientStops.push(Number(p.toFixed(4)), color)
             lastP = p
           }
 
-          // Ensure stops cover from 0.0 to 1.0
           if (gradientStops.length >= 2 && gradientStops[0] !== 0) {
             gradientStops[0] = 0
           }
@@ -418,7 +483,7 @@ export function MapView({
             gradientStops.push(1.0, lastColor)
           }
           if (gradientStops.length < 4) {
-            gradientStops.push(1.0, RISK_COLORS.LOW)
+            gradientStops.push(1.0, '#22c55e')
           }
 
           map.addSource('source-corridor-gradient', {
@@ -450,9 +515,8 @@ export function MapView({
                   ['line-progress'],
                   ...gradientStops,
                 ] as any,
-                'line-width': 16,
-                'line-opacity': 0.7,
-                'line-blur': 2,
+                'line-width': 8,
+                'line-opacity': 0.85,
               },
             },
             beforeId

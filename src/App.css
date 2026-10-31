@@ -3037,3 +3037,17 @@ html {
   display: inline-block;
   width: fit-content;
 }
+
+.view-results-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.route-count-note {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0.35rem 0 0 0;
+  text-align: right;
+  line-height: 1.25;
+}

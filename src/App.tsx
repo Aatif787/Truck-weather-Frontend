@@ -347,13 +347,21 @@ function App() {
               <span>Telemetry: ORS + Open-Meteo Deterministic</span>
             </div>
             {data && (
-              <button
-                type="button"
-                className="quick-scroll-results-btn"
-                onClick={() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              >
-                ↓ View Results ({data.routes_count})
-              </button>
+              <div className="view-results-container">
+                <button
+                  type="button"
+                  className="quick-scroll-results-btn"
+                  onClick={() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                >
+                  ↓ View Results ({data.routes_count})
+                </button>
+                {data.routes_count < 3 && (
+                  <p className="route-count-note">
+                    Routing engine returned {data.routes_count} viable alternative
+                    {data.routes_count === 1 ? '' : 's'} for this corridor.
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>
