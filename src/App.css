@@ -3068,18 +3068,18 @@ html {
   line-height: 1.25;
 }
 
-/* What-If Load Simulation Styles */
+/* What-If Load Simulation Styles (Zero Blue, Warm Logistics Theme) */
 .what-if-load-container {
   margin-top: 0.85rem;
-  background: #F8FAFC;
-  border: 1px dashed #CBD5E1;
+  background: #FAFAF9;
+  border: 1px solid #E5E5E2;
   border-radius: 8px;
-  padding: 0.85rem 1.1rem;
+  padding: 0.9rem 1.15rem;
   transition: all 0.2s ease;
 }
 
 .what-if-load-container.what-if-disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   pointer-events: none;
 }
 
@@ -3087,32 +3087,77 @@ html {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.75rem;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .what-if-title-group {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.55rem;
   font-size: 0.88rem;
-  color: #1E293B;
+  color: #222222;
+  font-weight: 600;
 }
 
 .what-if-icon {
-  font-size: 1.05rem;
+  font-size: 1.1rem;
 }
 
-.what-if-current-weight {
-  color: #0284C7;
-  font-size: 0.95rem;
+.what-if-badge {
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+  font-weight: 700;
+  padding: 0.18rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  letter-spacing: -0.01em;
+}
+
+.what-if-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.what-if-quick-presets {
+  display: flex;
+  gap: 0.3rem;
+  background: #F2F2EE;
+  padding: 0.15rem;
+  border-radius: 5px;
+}
+
+.what-if-preset-btn {
+  background: #FFFFFF;
+  border: 1px solid #E5E5E2;
+  color: #555555;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.45rem;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.what-if-preset-btn:hover {
+  border-color: #E87532;
+  color: #E87532;
+}
+
+.what-if-preset-btn.active {
+  background: #FFF7ED;
+  border-color: #E87532;
+  color: #C2410C;
 }
 
 .what-if-reset-btn {
   background: #FFFFFF;
-  border: 1px solid #CBD5E1;
-  color: #475569;
+  border: 1px solid #E5E5E2;
+  color: #444444;
   font-size: 0.75rem;
   font-weight: 500;
   padding: 0.25rem 0.6rem;
@@ -3122,14 +3167,14 @@ html {
 }
 
 .what-if-reset-btn:hover {
-  background: #F1F5F9;
-  border-color: #94A3B8;
-  color: #0F172A;
+  background: #F5F5F3;
+  border-color: #D4D4D0;
+  color: #111111;
 }
 
 .what-if-slider {
   width: 100%;
-  accent-color: #0284C7;
+  accent-color: #E87532;
   cursor: pointer;
 }
 
@@ -3137,16 +3182,16 @@ html {
   display: flex;
   justify-content: space-between;
   font-size: 0.72rem;
-  color: #64748B;
-  margin-top: 0.25rem;
+  color: #777777;
+  margin-top: 0.35rem;
 }
 
-/* What-If Preview Banner */
+/* What-If Preview Banner (Zero Blue Warm Alert) */
 .what-if-preview-banner {
-  background: #F0F9FF;
-  border: 1px solid #BAE6FD;
-  border-left: 4px solid #0284C7;
-  color: #0369A1;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-left: 4px solid #E87532;
+  color: #92400E;
   padding: 0.75rem 1.25rem;
   border-radius: 6px;
   display: flex;
@@ -3163,7 +3208,7 @@ html {
 }
 
 .what-if-preview-reset-btn {
-  background: #0284C7;
+  background: #E87532;
   color: #FFFFFF;
   border: none;
   font-size: 0.75rem;
@@ -3171,14 +3216,14 @@ html {
   padding: 0.35rem 0.75rem;
   border-radius: 4px;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .what-if-preview-reset-btn:hover {
-  opacity: 0.9;
+  background: #D96624;
 }
 
-/* Route Compare Styles */
+/* Route Compare Styles (Zero Blue Neutral Theme) */
 .route-comparison-header-row {
   display: flex;
   align-items: center;
@@ -3193,9 +3238,9 @@ html {
 }
 
 .clear-compare-btn {
-  background: #EFF6FF;
-  border: 1px solid #BFDBFE;
-  color: #2563EB;
+  background: #FFF7ED;
+  border: 1px solid #FED7AA;
+  color: #C2410C;
   font-size: 0.78rem;
   font-weight: 600;
   padding: 0.35rem 0.75rem;
@@ -3205,14 +3250,14 @@ html {
 }
 
 .clear-compare-btn:hover {
-  background: #DBEAFE;
-  border-color: #93C5FD;
+  background: #FFEDD5;
+  border-color: #FDBA74;
 }
 
 .compare-route-btn {
-  background: #F8FAFC;
-  border: 1px solid #CBD5E1;
-  color: #475569;
+  background: #F7F7F5;
+  border: 1px solid #E5E5E2;
+  color: #444444;
   font-size: 0.78rem;
   font-weight: 600;
   padding: 0.35rem 0.7rem;
@@ -3222,14 +3267,14 @@ html {
 }
 
 .compare-route-btn:hover {
-  border-color: #3B82F6;
-  color: #3B82F6;
+  border-color: #E87532;
+  color: #E87532;
 }
 
 .compare-route-btn.active {
-  background: #EFF6FF;
-  border-color: #3B82F6;
-  color: #1D4ED8;
+  background: #FFF7ED;
+  border-color: #E87532;
+  color: #C2410C;
 }
 
 /* Map Markers */

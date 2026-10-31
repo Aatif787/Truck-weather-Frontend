@@ -532,7 +532,7 @@ export function MapView({
         })
       })
 
-      // Add comparison routes (blue dashed line)
+      // Add comparison routes (slate dashed line)
       if (compareRouteIds && compareRouteIds.length > 0) {
         compareRouteIds.forEach((compId) => {
           if (compId === selectedRouteId) return
@@ -560,7 +560,7 @@ export function MapView({
               'line-cap': 'round',
             },
             paint: {
-              'line-color': '#3b82f6',
+              'line-color': '#475569',
               'line-dasharray': [3, 2],
               'line-width': 4,
               'line-opacity': 0.85,
@@ -784,7 +784,7 @@ export function MapView({
       })
     }
 
-    // 4. Comparison Route Markers (small faded blue dots)
+    // 4. Comparison Route Markers (small faded slate dots)
     if (compareRouteIds && compareRouteIds.length > 0) {
       compareRouteIds.forEach((compId) => {
         if (compId === selectedRouteId) return
@@ -797,7 +797,7 @@ export function MapView({
           compEl.style.width = '12px'
           compEl.style.height = '12px'
           compEl.style.borderRadius = '50%'
-          compEl.style.backgroundColor = '#3b82f6'
+          compEl.style.backgroundColor = '#475569'
           compEl.style.border = '2px solid #ffffff'
           compEl.style.opacity = '0.65'
           compEl.style.boxShadow = '0 1px 3px rgba(0,0,0,0.35)'
@@ -1123,13 +1123,13 @@ export function MapView({
         </div>
         {compareRouteIds && compareRouteIds.length > 0 && (
           <div className="compare-legend-row" style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid #E4E4E7', display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.85rem' }}>
-            <span style={{ fontWeight: 600, color: '#1E40AF' }}>Compare Mode:</span>
+            <span style={{ fontWeight: 600, color: '#222222' }}>Compare Mode:</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#1E293B' }}>
-              <span style={{ display: 'inline-block', width: '22px', height: '0', borderTop: '3px dashed #3B82F6' }} />
+              <span style={{ display: 'inline-block', width: '22px', height: '0', borderTop: '3px dashed #475569' }} />
               Comparison Corridor ({compareRouteIds.map((id) => routes.find((r) => r.id === id)?.name || id).join(', ')})
             </span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#64748B' }}>
-              <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#3B82F6', opacity: 0.65 }} />
+              <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#475569', opacity: 0.65 }} />
               Comparison Checkpoints
             </span>
           </div>

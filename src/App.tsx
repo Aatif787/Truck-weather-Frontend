@@ -71,6 +71,13 @@ const PRESET_CORRIDORS = [
 ]
 
 function getLoadRuleAdvice(weight: number) {
+  if (weight > 80000) {
+    return {
+      tier: 'Permitted Heavy-Haul Tier (>80k lbs)',
+      message: 'Special transport permit required. High rollover torque: Wind 35–44 mph escalates to SEVERE; 45+ mph NO_TRAVEL.',
+      badgeClass: 'badge-high',
+    }
+  }
   if (weight > 40000) {
     return {
       tier: 'Severe Load Tier (>40k lbs)',
@@ -299,11 +306,6 @@ function App() {
 
     if (Number(loadWeightLbs) < 0) {
       setError('Truck load weight cannot be negative.')
-      return
-    }
-
-    if (Number(loadWeightLbs) > 45000) {
-      setError('Load weight cannot exceed 45,000 lbs.')
       return
     }
 
@@ -576,18 +578,19 @@ function App() {
               <div className="label-row-with-helpers">
                 <label htmlFor="weight">Gross Cargo Weight (lbs)</label>
                 <div className="mini-helpers">
-                  <button type="button" onClick={() => setLoadWeightLbs(18000)} disabled={loading}>18k</button>
-                  <button type="button" onClick={() => setLoadWeightLbs(35000)} disabled={loading}>35k</button>
-                  <button type="button" onClick={() => setLoadWeightLbs(44000)} disabled={loading}>44k</button>
+                  <button type="button" onClick={() => setLoadWeightLbs(18000)} disabled={loading} title="Light / empty trailer (18k lbs)">18k</button>
+                  <button type="button" onClick={() => setLoadWeightLbs(35000)} disabled={loading} title="Standard heavy freight (35k lbs)">35k</button>
+                  <button type="button" onClick={() => setLoadWeightLbs(44000)} disabled={loading} title="Full legal dry-van / reefer (44k lbs)">44k</button>
+                  <button type="button" onClick={() => setLoadWeightLbs(65000)} disabled={loading} title="Heavy-haul / permitted load (65k lbs)">65k</button>
+                  <button type="button" onClick={() => setLoadWeightLbs(80000)} disabled={loading} title="Max legal interstate GVWR gross (80k lbs)">80k</button>
                 </div>
               </div>
               <input
                 id="weight"
                 type="number"
                 min="0"
-                max="45000"
                 step="500"
-                placeholder="e.g. 35000"
+                placeholder="e.g. 44000"
                 value={loadWeightLbs}
                 onChange={(e) => setLoadWeightLbs(Number(e.target.value))}
                 disabled={loading}
@@ -636,48 +639,107 @@ function App() {
             )
           })()}
 
-          {/* What-If Cargo Weight Simulation Slider */}
-          <div className={`what-if-load-container ${!data ? 'what-if-disabled' : ''}`}>
-            <div className="what-if-header">
-              <div className="what-if-title-group">
-                <span className="what-if-icon">🔬</span>
-                <span className="what-if-label">What-If Load Simulation:</span>
-                <strong className="what-if-current-weight">
-                  {(whatIfWeight ?? (Number(loadWeightLbs) || 35000)).toLocaleString()} lbs
-                </strong>
+          {/* What-If Cargo Weight Simulation Slider & Controls */}
+          {(() => {
+            const dispatchedCargoWeight = Number(loadWeightLbs) || 35000
+            const activeSimulationWeight = whatIfWeight ?? dispatchedCargoWeight
+            const simulationMaxWeight = Math.max(80000, Math.ceil(Math.max(activeSimulationWeight, dispatchedCargoWeight) * 1.25 / 10000) * 10000)
+
+            return (
+              <div className={`what-if-load-container ${!data ? 'what-if-disabled' : ''}`}>
+                <div className="what-if-header">
+                  <div className="what-if-title-group">
+                    <span className="what-if-icon">🔬</span>
+                    <span className="what-if-label">What-If Load Simulation</span>
+                    <span className="what-if-badge">
+                      {activeSimulationWeight.toLocaleString()} lbs
+                    </span>
+                  </div>
+                  <div className="what-if-header-actions">
+                    <div className="what-if-quick-presets" role="group" aria-label="Simulation weight presets">
+                      <button
+                        type="button"
+                        className={`what-if-preset-btn ${activeSimulationWeight === 15000 ? 'active' : ''}`}
+                        onClick={() => setWhatIfWeight(15000)}
+                        disabled={!data || loading}
+                        title="Simulate Light Load (15,000 lbs)"
+                      >
+                        15k
+                      </button>
+                      <button
+                        type="button"
+                        className={`what-if-preset-btn ${activeSimulationWeight === 35000 ? 'active' : ''}`}
+                        onClick={() => setWhatIfWeight(35000)}
+                        disabled={!data || loading}
+                        title="Simulate Heavy Load Tier (>30k lbs)"
+                      >
+                        35k
+                      </button>
+                      <button
+                        type="button"
+                        className={`what-if-preset-btn ${activeSimulationWeight === 44000 ? 'active' : ''}`}
+                        onClick={() => setWhatIfWeight(44000)}
+                        disabled={!data || loading}
+                        title="Simulate Severe Load Tier (>40k lbs)"
+                      >
+                        44k
+                      </button>
+                      <button
+                        type="button"
+                        className={`what-if-preset-btn ${activeSimulationWeight === 65000 ? 'active' : ''}`}
+                        onClick={() => setWhatIfWeight(65000)}
+                        disabled={!data || loading}
+                        title="Simulate Heavy-Haul Freight (65,000 lbs)"
+                      >
+                        65k
+                      </button>
+                      <button
+                        type="button"
+                        className={`what-if-preset-btn ${activeSimulationWeight === 80000 ? 'active' : ''}`}
+                        onClick={() => setWhatIfWeight(80000)}
+                        disabled={!data || loading}
+                        title="Simulate Max Legal Gross (80,000 lbs)"
+                      >
+                        80k
+                      </button>
+                    </div>
+                    {whatIfWeight !== null && (
+                      <button
+                        type="button"
+                        className="what-if-reset-btn"
+                        onClick={() => setWhatIfWeight(null)}
+                        title="Reset to dispatched cargo weight"
+                      >
+                        ↺ Dispatched ({dispatchedCargoWeight.toLocaleString()} lbs)
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="what-if-controls">
+                  <input
+                    id="what-if-weight-slider"
+                    type="range"
+                    min="0"
+                    max={simulationMaxWeight}
+                    step="1000"
+                    value={activeSimulationWeight}
+                    onChange={(e) => setWhatIfWeight(Number(e.target.value))}
+                    disabled={!data || loading}
+                    aria-label="What-if gross cargo weight simulation slider"
+                    className="what-if-slider"
+                  />
+                  <div className="what-if-ticks">
+                    <span>0 lbs (Empty)</span>
+                    <span>30k lbs (Heavy Tier)</span>
+                    <span>40k lbs (Severe Tier)</span>
+                    <span>80k lbs (Interstate GVWR)</span>
+                    <span>{(simulationMaxWeight / 1000).toFixed(0)}k lbs (Max)</span>
+                  </div>
+                </div>
               </div>
-              {whatIfWeight !== null && (
-                <button
-                  type="button"
-                  className="what-if-reset-btn"
-                  onClick={() => setWhatIfWeight(null)}
-                  title="Reset to dispatched cargo weight"
-                >
-                  ↺ Use dispatched load ({(Number(loadWeightLbs) || 35000).toLocaleString()} lbs)
-                </button>
-              )}
-            </div>
-            <div className="what-if-controls">
-              <input
-                id="what-if-weight-slider"
-                type="range"
-                min="10000"
-                max="45000"
-                step="1000"
-                value={whatIfWeight ?? (Math.min(45000, Math.max(10000, Number(loadWeightLbs) || 35000)))}
-                onChange={(e) => setWhatIfWeight(Number(e.target.value))}
-                disabled={!data || loading}
-                aria-label="What-if gross cargo weight simulation slider"
-                className="what-if-slider"
-              />
-              <div className="what-if-ticks">
-                <span>10k lbs (Light)</span>
-                <span>30k lbs (Heavy Tier)</span>
-                <span>40k lbs (Severe Tier)</span>
-                <span>45k lbs (Max)</span>
-              </div>
-            </div>
-          </div>
+            )
+          })()}
 
           <div className="form-actions-row">
             <button type="submit" className="submit-btn" disabled={loading}>
