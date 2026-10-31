@@ -302,6 +302,11 @@ function App() {
       return
     }
 
+    if (Number(loadWeightLbs) > 45000) {
+      setError('Load weight cannot exceed 45,000 lbs.')
+      return
+    }
+
     setLoading(true)
     setError(null)
     setData(null)
@@ -580,7 +585,7 @@ function App() {
                 id="weight"
                 type="number"
                 min="0"
-                max="80000"
+                max="45000"
                 step="500"
                 placeholder="e.g. 35000"
                 value={loadWeightLbs}
